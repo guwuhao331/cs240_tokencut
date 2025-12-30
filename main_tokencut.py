@@ -212,11 +212,14 @@ if __name__ == "__main__":
 
         init_image_size = img.shape
 
-        # Get the name of the image
+        # Get the name of the image (This might be a full path)
         im_name = dataset.get_image_name(inp[1])
         # Pass in case of no gt boxes in the image
         if im_name is None:
             continue
+        
+        # Create a sanitized name for saving files (removes directories)
+        save_im_name = os.path.basename(im_name)
 
         # Padding the image with zeros to fit multiple of patch-size
         size_im = (
@@ -304,10 +307,11 @@ if __name__ == "__main__":
                         feats = v
 
                     if args.save_feat_dir is not None:
+                        # Fix: use save_im_name to avoid path issues
                         np.save(
                             os.path.join(
                                 args.save_feat_dir,
-                                im_name.replace(".jpg", ".npy")
+                                save_im_name.replace(".jpg", ".npy")
                                 .replace(".jpeg", ".npy")
                                 .replace(".png", ".npy"),
                             ),
@@ -328,7 +332,7 @@ if __name__ == "__main__":
                 init_image_size,
                 args.tau,
                 args.eps,
-                im_name=im_name,
+                im_name=im_name, # ncut likely needs the ID for logging, usually fine
                 no_binary_graph=args.no_binary_graph,
             )
             b = time.time()
@@ -351,20 +355,23 @@ if __name__ == "__main__":
 
             if args.visualize == "pred" and args.no_evaluation:
                 image = dataset.load_image(im_name, size_im)
-                visualize_predictions(image, pred, vis_folder, im_name)
+                # Fix: pass save_im_name for file naming
+                visualize_predictions(image, pred, vis_folder, save_im_name)
             if args.visualize == "attn" and args.no_evaluation:
+                # Fix: pass save_im_name for file naming
                 visualize_eigvec(
-                    eigenvector, vis_folder, im_name, [w_featmap, h_featmap], scales
+                    eigenvector, vis_folder, save_im_name, [w_featmap, h_featmap], scales
                 )
             if args.visualize == "all" and args.no_evaluation:
                 image = dataset.load_image(im_name, size_im)
-                visualize_predictions(image, pred, vis_folder, im_name)
+                # Fix: pass save_im_name for file naming
+                visualize_predictions(image, pred, vis_folder, save_im_name)
                 visualize_eigvec(
-                    eigenvector, vis_folder, im_name, [w_featmap, h_featmap], scales
+                    eigenvector, vis_folder, save_im_name, [w_featmap, h_featmap], scales
                 )
 
         # ------------ Visualizations -------------------------------------------
-        # Save the prediction
+        # Save the prediction (using original name as key is fine)
         preds_dict[im_name] = pred
 
         # Evaluation
@@ -379,8 +386,8 @@ if __name__ == "__main__":
         vis_folder = f"{args.output_dir}/{exp_name}"
         os.makedirs(vis_folder, exist_ok=True)
         image = dataset.load_image(im_name)
-        # visualize_predictions(image, pred, vis_folder, im_name)
-        # visualize_eigvec(eigenvector, vis_folder, im_name, [w_featmap, h_featmap], scales)
+        # visualize_predictions(image, pred, vis_folder, save_im_name)
+        # visualize_eigvec(eigenvector, vis_folder, save_im_name, [w_featmap, h_featmap], scales)
 
         cnt += 1
         if cnt % 50 == 0:

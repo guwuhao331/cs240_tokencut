@@ -8,10 +8,12 @@ import numpy as np
 import torch.nn as nn
 from PIL import Image
 import scipy
-
+import os # Added import
 import matplotlib.pyplot as plt
 
 def visualize_img(image, vis_folder, im_name):
+    # Ensure im_name is just the filename, not a full path
+    im_name = os.path.basename(im_name)
     pltname = f"{vis_folder}/{im_name}"
     Image.fromarray(image).save(pltname)
     print(f"Original image saved at {pltname}.")
@@ -29,6 +31,8 @@ def visualize_predictions(img, pred, vis_folder, im_name, save=True):
         (255, 0, 0), 3,
     )
     if save:
+        # Ensure im_name is just the filename, not a full path
+        im_name = os.path.basename(im_name)
         pltname = f"{vis_folder}/{im_name}_TokenCut_pred.jpg"
         Image.fromarray(image).save(pltname)
         print(f"Predictions saved at {pltname}.")
@@ -56,6 +60,8 @@ def visualize_predictions_gt(img, pred, gt, vis_folder, im_name, dim, scales, sa
                 (0, 0, 255), 3,
             )
     if save:
+        # Ensure im_name is just the filename, not a full path
+        im_name = os.path.basename(im_name)
         pltname = f"{vis_folder}/{im_name}_TokenCut_BBOX.jpg"
         Image.fromarray(image).save(pltname)
         #print(f"Predictions saved at {pltname}.")
@@ -67,6 +73,8 @@ def visualize_eigvec(eigvec, vis_folder, im_name, dim, scales, save=True):
     """
     eigvec = scipy.ndimage.zoom(eigvec, scales, order=0, mode='nearest')
     if save:
+        # Ensure im_name is just the filename, not a full path
+        im_name = os.path.basename(im_name)
         pltname = f"{vis_folder}/{im_name}_TokenCut_attn.jpg"
         plt.imsave(fname=pltname, arr=eigvec, cmap='cividis')
         print(f"Eigen attention saved at {pltname}.")

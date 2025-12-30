@@ -27,12 +27,12 @@ class FastNcut:
         return B, c
 
     def _projected_powermethod(self):
-        A = torch.from_numpy(self.A).to(torch.float32)
-        B = torch.from_numpy(self.B).to(torch.float32)
-        c = torch.from_numpy(self.c).to(torch.float32)
+        A = torch.from_numpy(self.A).to(torch.float32).cuda()
+        B = torch.from_numpy(self.B).to(torch.float32).cuda()
+        c = torch.from_numpy(self.c).to(torch.float32).cuda()
 
         P = (
-            torch.eye(len(A), dtype=torch.float32)
+            torch.eye(len(A), dtype=torch.float32).cuda()
             - B.T @ torch.linalg.pinv(B @ B.T) @ B
         )
         PA = P @ A  # Pre-Compute PA
@@ -44,7 +44,7 @@ class FastNcut:
         if torch.count_nonzero(B) == 0:
             v = ganma * PA @ n_0 / torch.norm(PA @ n_0) + n_0
         else:
-            v = torch.rand(len(A), 1, dtype=torch.float32)
+            v = torch.rand(len(A), 1, dtype=torch.float32).cuda()
 
         obj = v.T @ A @ v
         obj_old = obj

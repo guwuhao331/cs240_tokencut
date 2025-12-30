@@ -5,12 +5,12 @@ Code adapted from LOST: https://github.com/valeoai/LOST
 
 import torch
 import torch.nn.functional as F
-#from torch.linalg import eigh
+from torch.linalg import eigh
 import numpy as np
 # from scipy.linalg import eigh
 from scipy import ndimage
 from fastncut import FastNcut
-from sklearn.cluster import KMeans
+
 
 def ncut(
     feats,
@@ -222,7 +222,6 @@ def fast_ncut(
     return np.asarray(pred), objects, mask, seed, None, eigenvec.reshape(dims)
 
 
-
 def fast_ncut_optimized(
     feats,
     dims,
@@ -235,7 +234,6 @@ def fast_ncut_optimized(
 ):
     """
     Further optimized implementation of Fast NCut Method.
-    Modified with Boundary Constraints and K-Means Bipartition.
     """
 
     # torch acc
@@ -257,62 +255,22 @@ def fast_ncut_optimized(
 
     A_numpy = A.cpu().numpy()
 
-    # ---------------------------------------------------------
-    # 优化点 1: 使用“四周边界约束”替代原来的“左上角约束”
-    # ---------------------------------------------------------
-    h, w = dims
-    boundary_indices = []
-
-    # 添加顶边和底边的索引连接
-    for i in range(w - 1):
-        boundary_indices.append([i, i+1]) 
-        boundary_indices.append([(h-1)*w + i, (h-1)*w + i + 1]) 
-
-    # 添加左边和右边的索引连接
-    for i in range(h - 1):
-        boundary_indices.append([i*w, (i+1)*w]) 
-        boundary_indices.append([i*w + (w-1), (i+1)*w + (w-1)]) 
-
-    const = np.array(boundary_indices)
-
-    # 运行 FastNCut
+    const = np.array([[0, 1], [0, 2], [1, 5], [3, 8], [4, 9]])
     model = FastNcut(const=const, A=A_numpy)
     fast_ncut_result = model.fit(A_numpy)
     second_smallest_vec = fast_ncut_result.reshape(-1)
 
-    # ---------------------------------------------------------
-    # 优化点 2: 关键修复！先计算 Seed，再做 K-Means
-    # ---------------------------------------------------------
-    
-    # 【修复】Seed 计算必须提上来，因为后面 K-Means 选前景要用到它
+    # mean and bipartition
+    avg = second_smallest_vec.mean()
+    bipartition = second_smallest_vec > avg
+    eigenvec = -fast_ncut_result.reshape(-1)
+    bipartition = np.logical_not(bipartition).astype(float).reshape(dims)
+
+    # optimal
     seed = np.argmin(np.abs(second_smallest_vec))
-
-    # 1. K-Means 聚类
-    vec_data = second_smallest_vec.reshape(-1, 1)
-    kmeans = KMeans(n_clusters=2, random_state=0).fit(vec_data)
-    labels = kmeans.labels_
-
-    # 2. 确定前景 (包含 Seed 的那个类即为前景)
-    seed_label = labels[seed]
-    bipartition = (labels == seed_label)
-
-    # 3. 格式化掩码 (Format Mask)
-    # 此时 bipartition 已经是前景为 True 的掩码了，直接转 float 即可
-    bipartition = bipartition.reshape(dims).astype(float)
-    
-    # 特征向量保持原样即可，用于可视化
-    eigenvec = second_smallest_vec
-
-    # ---------------------------------------------------------
-    # 后续检测逻辑 (Detect Box)
-    # ---------------------------------------------------------
-    
-    # 调用 detect_box (注意：seed 已经在上面算过了，这里直接传进去)
     pred, _, objects, cc = detect_box(
         bipartition, seed, dims, scales=scales, initial_im_size=init_image_size[1:]
     )
-    
-    # 生成最终 Mask
     mask = np.zeros(dims)
     mask[cc[0], cc[1]] = 1
 

@@ -85,3 +85,35 @@ def get_model(arch, patch_size, device):
     model.eval()
     model.to(device)
     return model
+
+def get_coler_model(arch='vit_base', patch_size=8, device='cuda'):
+
+    import dino_coler.vision_transformer as vits 
+    
+
+    arch_dict = {
+        'vit_small': vits.vit_small,
+        'vit_base': vits.vit_base,
+    }
+    
+    if arch not in arch_dict:
+        raise ValueError(f"Unknown architecture: {arch}")
+
+
+    model = arch_dict[arch](patch_size=patch_size)
+    
+
+    url = None
+    if arch == 'vit_base' and patch_size == 8:
+        url = "https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth"
+    elif arch == 'vit_small' and patch_size == 8:
+        url = "https://dl.fbaipublicfiles.com/dino/dino_deitsmall8_300ep_pretrain/dino_deitsmall8_300ep_pretrain.pth"
+
+
+    if url:
+        state_dict = torch.hub.load_state_dict_from_url(url, map_location=device)
+        model.load_state_dict(state_dict, strict=True)
+    
+    model.to(device)
+    model.eval()
+    return model
