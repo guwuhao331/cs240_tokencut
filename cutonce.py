@@ -4,6 +4,7 @@ import numpy as np
 from scipy import ndimage
 from PIL import Image
 
+# Try to import pydensecrf
 try:
     import pydensecrf.densecrf as dcrf
     from pydensecrf.utils import unary_from_softmax
@@ -14,7 +15,7 @@ except ImportError:
 
 def density_aware_affinity(features, k=10, t0=1.0, alpha=0.5, tau=0.15, eps=1e-5):
     """
-    [Paper Section 3.2] Density-Tune Cosine Similarity (Eq. 3 & 4)
+    [Paper Section 3.2] Density-Tune Cosine Similarity.
     Computes affinity matrix with adaptive temperature based on local feature density.
     """
     N = features.shape[1]
@@ -23,9 +24,8 @@ def density_aware_affinity(features, k=10, t0=1.0, alpha=0.5, tau=0.15, eps=1e-5
     # features: (D, N), normalized
     S = features.T @ features # (N, N)
     
-    # 2. Compute local density rho_i (Eq. 4)
+    # 2. Compute local density rho_i
     # Select top-k neighbors (excluding self)
-    # We use top-(k+1) and exclude the first one (self)
     topk_vals, _ = torch.topk(S, k=k+1, dim=1) 
     # Sum of similarities of k neighbors / k
     rho = torch.mean(topk_vals[:, 1:], dim=1) # (N,)
@@ -35,10 +35,10 @@ def density_aware_affinity(features, k=10, t0=1.0, alpha=0.5, tau=0.15, eps=1e-5
     rho_matrix = (rho.unsqueeze(0) + rho.unsqueeze(1)) / 2 # (N, N)
     T = t0 + alpha * rho_matrix
     
-    # 4. Compute modulated affinity W_ij (Eq. 3)
+    # 4. Compute modulated affinity W_ij
     W = S / T
     
-    # 5. Thresholding (consistent with TokenCut logic mentioned in paper)
+    # 5. Thresholding
     A = (W > tau).float()
     A[A == 0] = eps
     
@@ -47,22 +47,19 @@ def density_aware_affinity(features, k=10, t0=1.0, alpha=0.5, tau=0.15, eps=1e-5
 
 def boundary_augmentation(eigen_vec, h, w, k=8):
     """
-    [Paper Section 3.2] Boundary Augmentation (Eq. 5 & 6)
+    [Paper Section 3.2] Boundary Augmentation.
     Enhances the eigenvector by subtracting local boundary information.
     """
-    # X: (N,) -> (H, W)
     X = eigen_vec.view(h, w)
     
-    # Pad to handle boundaries (replicate padding as per paper)
-    pad_size = 1 # k=8 implies 3x3 neighborhood, radius 1
+    # Pad to handle boundaries (replicate padding)
+    pad_size = 1 
     X_pad = F.pad(X.unsqueeze(0).unsqueeze(0), (pad_size, pad_size, pad_size, pad_size), mode='replicate').squeeze()
     
-    # Calculate X_b: average absolute difference with neighbors (Eq. 6)
-    # We implement this efficiently using unfolded patches or manual shifting
+    # Calculate X_b: average absolute difference with neighbors (Gradient)
     diff_sum = torch.zeros_like(X)
     count = 0
     
-    # Iterate over 8 neighbors
     for dy in [-1, 0, 1]:
         for dx in [-1, 0, 1]:
             if dy == 0 and dx == 0:
@@ -75,7 +72,7 @@ def boundary_augmentation(eigen_vec, h, w, k=8):
             
     X_b = diff_sum / count
     
-    # Calculate X_a = X - X_b (Eq. 5)
+    # Calculate X_a = X - X_b
     X_a = X - X_b
     
     return X_a.flatten()
@@ -90,10 +87,9 @@ def ncut_coler(features, dims, tau=0.15, eps=1e-5):
     N = feats.shape[1]
 
     # --- Module 1: Density-Tune Cosine Similarity ---
-    # Default parameters from paper: k=10, T0=1.0, alpha=0.5
     A = density_aware_affinity(feats, k=10, t0=1.0, alpha=0.5, tau=tau, eps=eps)
 
-    # Standard Ncut: Solve (D - W)x = lambda D x
+    # Standard Ncut
     d = A.sum(dim=1)
     inv_sqrt_d = d.pow(-0.5)
     D_inv_sqrt = torch.diag(inv_sqrt_d)
@@ -101,12 +97,10 @@ def ncut_coler(features, dims, tau=0.15, eps=1e-5):
     L_sym = torch.eye(N, device=features.device) - D_inv_sqrt @ A @ D_inv_sqrt
 
     # Eigen decomposition
-    # Note: eigh is used as L_sym is symmetric
     eigenvalues, eigenvectors = torch.linalg.eigh(L_sym, UPLO='L')
     second_vec = eigenvectors[:, 1] # Fiedler vector
     
     # --- Module 2: Boundary Augmentation ---
-    # Enhance the second eigenvector
     enhanced_vec = boundary_augmentation(second_vec, h, w)
     
     return enhanced_vec
@@ -114,7 +108,8 @@ def ncut_coler(features, dims, tau=0.15, eps=1e-5):
 
 def get_masks_coler(eigen_vec, dims, tau_filter=0.95, object_centric=True):
     """
-    [Paper Section 3.2] Ranking-Based Instance Filter
+    [Paper Section 3.2] Ranking-Based Instance Filter.
+    Uses standard Connected Components logic (no Watershed).
     """
     h, w = dims
     masks = []
@@ -134,7 +129,10 @@ def get_masks_coler(eigen_vec, dims, tau_filter=0.95, object_centric=True):
     else:
         bipartition = bipartition_reshaped
 
+    # Fill holes to avoid empty spots inside objects
     bipartition = ndimage.binary_fill_holes(bipartition)
+
+    # Label connected components
     objects, num_objects = ndimage.label(bipartition)
     
     if num_objects < 1:
@@ -142,8 +140,8 @@ def get_masks_coler(eigen_vec, dims, tau_filter=0.95, object_centric=True):
 
     labels, counts = np.unique(objects, return_counts=True)
     
-    # Calculate feature sums for each component (S_i in paper)
-    # Note: Using enhanced eigenvector values for summing
+    # Calculate feature sums for each component (Ranking score)
+    # Using the eigenvector values for scoring
     eigen_vec_np = eigen_vec.cpu().numpy().reshape(h, w)
     sums = ndimage.sum(eigen_vec_np, labels=objects, index=labels)
 
@@ -165,7 +163,6 @@ def get_masks_coler(eigen_vec, dims, tau_filter=0.95, object_centric=True):
     sorted_labels = valid_labels[order]
     
     # 2. Cumulative screening
-    # Select objects until cumulative sum >= tau * total_sum
     total_sum = np.sum(sorted_sums)
     current_sum = 0
     
@@ -194,8 +191,7 @@ def bbox_from_mask(mask):
 
 def densecrf_post_process(image_np, mask_np):
     """
-    CRF Post-processing (Standard).
-    Used in 'CutOnce+' or 'COLER' training generation, but technically optional for pure CutOnce.
+    CRF Post-processing with Crop strategy.
     """
     if dcrf is None:
         return mask_np
@@ -228,6 +224,7 @@ def densecrf_post_process(image_np, mask_np):
     d = dcrf.DenseCRF2D(w_crop, h_crop, 2)
     U = unary_from_softmax(prob)
     d.setUnaryEnergy(U)
+    
     d.addPairwiseGaussian(sxy=3, compat=7)
     d.addPairwiseBilateral(sxy=50, srgb=5, rgbim=np.ascontiguousarray(image_crop), compat=10)
     
