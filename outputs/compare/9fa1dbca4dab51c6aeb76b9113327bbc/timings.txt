@@ -1,0 +1,27 @@
+total	156.775701
+tokencut	10.657510
+fastcut	1.858089
+cutonce	10.151139
+coler	10.129097
+
+setup_s	3.039259
+compare_png_s	0.370205
+tokencut.features_s	0.024935
+tokencut.infer_s	9.069692
+tokencut.load_s	1.459323
+tokencut.post_s	0.019685
+tokencut.save_s	0.083875
+fastcut.features_s	0.012506
+fastcut.infer_s	0.230801
+fastcut.load_s	1.465880
+fastcut.post_s	0.010461
+fastcut.save_s	0.138442
+cutonce.features_s	0.010486
+cutonce.infer_s	8.092370
+cutonce.load_s	1.932014
+cutonce.post_s	0.022938
+cutonce.save_s	0.093331
+coler.post_s	0.014647
+coler.pre_s	10.034870
+coler.reuse_cutonce_eigen_vec	1.000000
+coler.save_s	0.079580

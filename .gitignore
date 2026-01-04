@@ -25,14 +25,3 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Outputs / artifacts
-outputs/
-*.png
-*.jpg
-*.jpeg
-*.npy
-*.npz
-*.pth
-*.pt
-*.log
-
