@@ -14,15 +14,15 @@ import numpy as np
 from tqdm import tqdm
 from PIL import Image
 
-from networks import get_model
-from datasets import ImageDataset, Dataset, bbox_iou
-from visualizations import (
+from tokencut.networks import get_model
+from tokencut.datasets import ImageDataset, Dataset, bbox_iou
+from tokencut.visualizations import (
     visualize_img,
     visualize_eigvec,
     visualize_predictions,
     visualize_predictions_gt,
 )
-from object_discovery import ncut, fast_ncut, fast_ncut_optimized
+from tokencut.object_discovery import ncut, fast_ncut, fast_ncut_optimized
 import matplotlib.pyplot as plt
 import time
 

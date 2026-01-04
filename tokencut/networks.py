@@ -106,8 +106,12 @@ def get_coler_model(arch='vit_base', patch_size=8, device='cuda'):
     url = None
     if arch == 'vit_base' and patch_size == 8:
         url = "https://dl.fbaipublicfiles.com/dino/dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth"
+    elif arch == 'vit_base' and patch_size == 16:
+        url = "https://dl.fbaipublicfiles.com/dino/dino_vitbase16_pretrain/dino_vitbase16_pretrain.pth"
     elif arch == 'vit_small' and patch_size == 8:
         url = "https://dl.fbaipublicfiles.com/dino/dino_deitsmall8_300ep_pretrain/dino_deitsmall8_300ep_pretrain.pth"
+    elif arch == 'vit_small' and patch_size == 16:
+        url = "https://dl.fbaipublicfiles.com/dino/dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth"
 
 
     if url:

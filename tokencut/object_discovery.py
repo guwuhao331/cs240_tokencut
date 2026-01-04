@@ -5,11 +5,34 @@ Code adapted from LOST: https://github.com/valeoai/LOST
 
 import torch
 import torch.nn.functional as F
-from torch.linalg import eigh
 import numpy as np
 # from scipy.linalg import eigh
 from scipy import ndimage
-from fastncut import FastNcut
+from .fastncut import FastNcut
+
+
+def _eigh_symmetric(matrix: torch.Tensor, uplo: str = "U"):
+    # Prefer GPU for speed; fall back to CPU if MAGMA/GPU eigensolver fails.
+    linalg = getattr(torch, "linalg", None)
+    if linalg is not None and hasattr(linalg, "eigh"):
+        try:
+            return linalg.eigh(matrix, UPLO=uplo)
+        except Exception:
+            pass
+    if hasattr(torch, "symeig"):
+        try:
+            return torch.symeig(matrix, eigenvectors=True)
+        except Exception:
+            pass
+
+    matrix_np = matrix.detach().cpu().numpy()
+    values, vectors = np.linalg.eigh(matrix_np)
+    values_t = torch.from_numpy(values)
+    vectors_t = torch.from_numpy(vectors)
+    if matrix.is_cuda:
+        values_t = values_t.to(matrix.device)
+        vectors_t = vectors_t.to(matrix.device)
+    return values_t, vectors_t
 
 
 def ncut(
@@ -50,7 +73,7 @@ def ncut(
 
     # Print second and third smallest eigenvector
     L = D - A
-    _, eigenvectors = torch.linalg.eigh(L, UPLO="U")
+    _, eigenvectors = _eigh_symmetric(L, uplo="U")
     eigenvectors = eigenvectors.cpu().numpy()
     eigenvec = np.copy(eigenvectors[:, 0])
 

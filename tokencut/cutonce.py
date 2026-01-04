@@ -13,6 +13,30 @@ except ImportError:
     dcrf = None
 
 
+def _eigh_symmetric(matrix: torch.Tensor, uplo: str = "L"):
+    # Prefer GPU for speed; fall back to CPU if MAGMA/GPU eigensolver fails.
+    linalg = getattr(torch, "linalg", None)
+    if linalg is not None and hasattr(linalg, "eigh"):
+        try:
+            return linalg.eigh(matrix, UPLO=uplo)
+        except Exception:
+            pass
+    if hasattr(torch, "symeig"):
+        try:
+            return torch.symeig(matrix, eigenvectors=True)
+        except Exception:
+            pass
+
+    matrix_np = matrix.detach().cpu().numpy()
+    values, vectors = np.linalg.eigh(matrix_np)
+    values_t = torch.from_numpy(values)
+    vectors_t = torch.from_numpy(vectors)
+    if matrix.is_cuda:
+        values_t = values_t.to(matrix.device)
+        vectors_t = vectors_t.to(matrix.device)
+    return values_t, vectors_t
+
+
 def density_aware_affinity(features, k=10, t0=1.0, alpha=0.5, tau=0.15, eps=1e-5):
     """
     [Paper Section 3.2] Density-Tune Cosine Similarity.
@@ -97,7 +121,7 @@ def ncut_coler(features, dims, tau=0.15, eps=1e-5):
     L_sym = torch.eye(N, device=features.device) - D_inv_sqrt @ A @ D_inv_sqrt
 
     # Eigen decomposition
-    eigenvalues, eigenvectors = torch.linalg.eigh(L_sym, UPLO='L')
+    eigenvalues, eigenvectors = _eigh_symmetric(L_sym, uplo="L")
     second_vec = eigenvectors[:, 1] # Fiedler vector
     
     # --- Module 2: Boundary Augmentation ---

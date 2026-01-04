@@ -7,8 +7,8 @@ from PIL import Image
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
-from networks import get_coler_model 
-from cutonce import ncut_coler, get_masks_coler, densecrf_post_process
+from tokencut.networks import get_coler_model
+from tokencut.cutonce import ncut_coler, get_masks_coler, densecrf_post_process
 
 def pad_to_patch_size(I, patch_size=8):
     """

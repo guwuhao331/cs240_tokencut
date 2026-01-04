@@ -1,6 +1,30 @@
 import numpy as np
 import torch
 
+
+def _pinv(matrix: torch.Tensor) -> torch.Tensor:
+    # Prefer GPU for speed; fall back to CPU if MAGMA/GPU SVD fails.
+    device = matrix.device
+    linalg = getattr(torch, "linalg", None)
+    if linalg is not None and hasattr(linalg, "pinv"):
+        try:
+            return linalg.pinv(matrix)
+        except Exception:
+            pass
+    else:
+        try:
+            return torch.pinverse(matrix)
+        except Exception:
+            pass
+
+    matrix_cpu = matrix.detach().cpu()
+    if linalg is not None and hasattr(linalg, "pinv"):
+        pinv_cpu = linalg.pinv(matrix_cpu)
+    else:
+        pinv_cpu = torch.pinverse(matrix_cpu)
+    return pinv_cpu.to(device)
+
+
 class FastNcut:
     def __init__(
         self,
@@ -33,12 +57,12 @@ class FastNcut:
 
         P = (
             torch.eye(len(A), dtype=torch.float32).cuda()
-            - B.T @ torch.linalg.pinv(B @ B.T) @ B
+            - B.T @ _pinv(B @ B.T) @ B
         )
         PA = P @ A  # Pre-Compute PA
 
         k = 0
-        n_0 = B.T @ torch.linalg.pinv(B @ B.T) @ c
+        n_0 = B.T @ _pinv(B @ B.T) @ c
         ganma = torch.sqrt(1 - torch.norm(n_0) ** 2)
 
         if torch.count_nonzero(B) == 0:
